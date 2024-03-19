@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat</title>
+    <style>
+    #chat {
+        width: 400px;
+        height: 300px;
+        border: 4px solid #ccc;
+        overflow-y: scroll;
+        margin-bottom: 10px;
+    }
+    .chat {
+        width: fit-content;
+    }
+    .chat__controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+    .chat__input {
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        padding: 0 4px;
+        font-size: 14px;
+        font-family: Arial, Helvetica, sans-serif;
+        height: 26px;
+        width: 200px;
+    }
+    .chat__buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .chat__button {
+        font-size: 14px;
+        font-family: Arial, Helvetica, sans-serif;
+        height: 28px;
+    }
+    .chat__messages {
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 14px;
+    }
+    .chat__message {
+        width: fit-content;
+        border: 1px solid #ddd;
+        padding: 4px 6px;
+        border-radius: 3px;
+        margin: 0 auto 0 0;
+        background-color: bisque;
+    }
+    .chat__message-user {
+        margin: 0 0 0 auto;
+        background-color: aquamarine;
+    }
+    </style>
+</head>
+<body>
+    <div class="chat">
+        <div id="chat" class="chat__messages"></div>
+        <div class="chat__controls">
+            <input type="text" id="input" class="chat__input">
+            <div class="chat__buttons">
+                <button class="chat__button" onclick="sendMessage()">Отправить</button>
+                <button class="chat__button" onclick="sendLocation()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-cursor" viewBox="0 0 16 16">
+                        <path d="M14.082 2.182a.5.5 0 0 1 .103.557L8.528 15.467a.5.5 0 0 1-.917-.007L5.57 10.694.803 8.652a.5.5 0 0 1-.006-.916l12.728-5.657a.5.5 0 0 1 .556.103zM2.25 8.184l3.897 1.67a.5.5 0 0 1 .262.263l1.67 3.897L12.743 3.52z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chat = document.getElementById('chat')
+        const messageInput = document.getElementById('input')
+
+        const websocket = new WebSocket('wss://echo-ws-service.herokuapp.com')
+        websocket.onmessage = function(event) {
+            const message = event.data
+            if (!isEchoLocation(message)) {
+                displayMessage(message, false)
+            }
+        }
+
+        function isEchoLocation(message) {
+            return isURL(message) && message.includes('openstreetmap.org')
+        }
+
+        function sendMessage() {
+            const message = messageInput.value
+            if (message.trim() !== '') {
+                websocket.send(message)
+                displayMessage(message, true)
+                messageInput.value = ''
+            }
+        }
+
+        function sendLocation() {
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                position => {
+                    const latitude = position.coords.latitude
+                    const longitude = position.coords.longitude
+                    const locationUrl = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}&zoom=15`
+                    console.log('geo')
+                    websocket.send(locationUrl)
+                    displayMessage(locationUrl, true)
+                },
+                error => {
+                    if (error.code === error.PERMISSION_DENIED) {
+                        console.error('Пользователь отклонил запрос на доступ к геолокации.')
+                    } else {
+                        console.error('Ошибка получения геолокации:', error.message)
+                    }
+                })
+            } else {
+                console.error('Геолокация не поддерживается вашим браузером.')
+            }
+        }
+
+        function displayMessage(message, isUser) {
+            const p = document.createElement('p')
+            p.classList.add('chat__message') 
+            p.classList.add(isUser ? 'chat__message-user' : 'chat__message-server')
+            if (isURL(message)) {
+                const a = document.createElement('a')
+                a.textContent = 'Геолокация'
+                a.href = message
+                a.target = '_blank'
+                p.appendChild(a)
+            } else {
+                p.textContent = message
+            }
+            chat.appendChild(p)
+            chat.scrollTop = chat.scrollHeight
+        }
+
+        function isURL(str) {
+            const pattern = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/
+            return pattern.test(str)
+        }
+    </script>
+</body>
+</html>
